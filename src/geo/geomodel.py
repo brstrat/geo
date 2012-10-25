@@ -36,6 +36,8 @@ import util
 
 DEBUG = False
 
+class TooManyGeoResultsReturned(Exception):
+  pass
 
 def default_cost_function(num_cells, resolution):
   """The default cost function, used if none is provided by the developer."""
@@ -49,7 +51,7 @@ class GeoModel(db.Model):
     location: A db.GeoPt that defines the single geographic point
         associated with this entity.
   """
-  location = db.GeoPtProperty(required=True)
+  location = db.GeoPtProperty(required=False)
   location_geocells = db.StringListProperty()
 
   def update_location(self):
@@ -138,7 +140,7 @@ class GeoModel(db.Model):
         entity.location.lon <= bbox.east]
 
   @staticmethod
-  def proximity_fetch(query, center, max_results=10, max_distance=0):
+  def proximity_fetch(query, center, max_results=10, max_distance=0, limit=None):
     """Performs a proximity/radius fetch on the given query.
 
     Fetches at most <max_results> entities matching the given query,
@@ -265,6 +267,11 @@ class GeoModel(db.Model):
         cur_geocells.extend(
             [geocell.adjacent(cell, perpendicular_nearest_edge)
              for cell in cur_geocells])
+
+
+      # Above the limit?
+      if limit is not None and len(results) > limit:
+        raise TooManyGeoResultsReturned('Found more than %s results' % limit)
 
       # We don't have enough items yet, keep searching.
       if len(results) < max_results:
